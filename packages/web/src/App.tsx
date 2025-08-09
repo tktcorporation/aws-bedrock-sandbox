@@ -23,6 +23,7 @@ import {
   PiTreeStructure,
   PiNotebook,
   PiGraph,
+  PiForkKnife,
 } from 'react-icons/pi';
 import { Outlet } from 'react-router-dom';
 import Drawer, { ItemProps } from './components/Drawer';
@@ -239,6 +240,12 @@ const App: React.FC = () => {
       to: '/transcribe',
       icon: <PiSpeakerHighBold />,
       display: 'tool' as const,
+    },
+    {
+      label: '冷蔵庫管理 & 献立提案',
+      to: '/fridge',
+      icon: <PiForkKnife />,
+      display: 'usecase' as const,
     },
     optimizePromptEnabled
       ? {

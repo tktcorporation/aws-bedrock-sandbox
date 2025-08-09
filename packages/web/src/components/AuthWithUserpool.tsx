@@ -26,7 +26,7 @@ const AuthWithUserpool: React.FC<Props> = (props) => {
     API: {
       Events: {
         endpoint: speechToSpeechEventApiEndpoint,
-        region: process.env.VITE_APP_REGION!,
+        region: import.meta.env.VITE_APP_REGION!,
         defaultAuthMode: 'userPool',
       },
     },

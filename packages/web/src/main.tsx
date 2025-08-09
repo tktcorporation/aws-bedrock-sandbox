@@ -44,6 +44,7 @@ import GenerateDiagramPage from './pages/GenerateDiagramPage.tsx';
 import WriterPage from './pages/WriterPage.tsx';
 import useUseCases from './hooks/useUseCases';
 import { Toaster } from 'sonner';
+import { FridgeApp } from './pages/FridgeApp';
 
 const ragEnabled: boolean = import.meta.env.VITE_APP_RAG_ENABLED === 'true';
 const ragKnowledgeBaseEnabled: boolean =
@@ -152,6 +153,10 @@ const routes: RouteObject[] = [
   {
     path: '/transcribe',
     element: <TranscribePage />,
+  },
+  {
+    path: '/fridge',
+    element: <FridgeApp />,
   },
   {
     path: '/flow-chat',
