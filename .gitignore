@@ -1,0 +1,10 @@
+.DS_Store
+node_modules
+
+!.gitkeep
+
+/*/dist/**
+
+# MkDocs documentation
+site*/
+.cache
