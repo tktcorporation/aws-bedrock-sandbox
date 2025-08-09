@@ -1,0 +1,59 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/base:bookworm",
+	"features": {
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/node:1": {},
+		"ghcr.io/devcontainers-extra/features/mise:1": {}
+	},
+	"forwardPorts": [
+		5173,
+		8787
+	],
+	"portsAttributes": {
+		"5173": {
+			"label": "vite"
+		}
+	},
+	"runArgs": ["--env-file", ".devcontainer/devcontainer.env"],
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"mhutchie.git-graph",
+				"WakaTime.vscode-wakatime"
+			],
+			"files.watcherExclude": {
+				"**/.git/*/**": true,
+				"**/node_modules/*/**": true
+			}
+		}
+	},
+	"onCreateCommand": {
+		"update-apt": [
+			"sudo",
+			"apt-get",
+			"update"
+		]
+	},
+	"updateContentCommand": {
+		"install-packages": [
+			"sudo",
+			"apt-get",
+			"install",
+			"-y",
+			"ripgrep",
+			"bc"
+		]
+	},
+	"postCreateCommand": {
+		"setup-mise-bash": [
+			"bash",
+			"-c",
+			"echo 'eval \"$(mise activate bash)\"' >> ~/.bashrc"
+		],
+		"trust-mise": [
+			"mise",
+			"trust"
+		]
+	},
+	"postStartCommand": "mise install"
+}
