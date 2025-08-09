@@ -1,5 +1,9 @@
 import { useState } from 'react';
-import { Ingredient } from '../types/fridge';
+import { IngredientCategory } from '../schemas/fridge';
+import {
+  validateCategoryResponse,
+  validateBulkCategoryResponse,
+} from '../schemas/aiResponse';
 import useChatApi from './useChatApi';
 import { Model } from 'generative-ai-use-cases';
 
@@ -9,7 +13,7 @@ export const useAICategorizor = () => {
 
   const categorizeIngredient = async (
     ingredientName: string
-  ): Promise<Ingredient['category']> => {
+  ): Promise<IngredientCategory> => {
     const prompt = `以下の食材のカテゴリーを判定してください。
 食材名: ${ingredientName}
 
@@ -33,7 +37,7 @@ export const useAICategorizor = () => {
       };
 
       let fullText = '';
-      
+
       // AsyncGeneratorから結果を取得
       const generator = predictStream({
         id: Date.now().toString(),
@@ -47,25 +51,27 @@ export const useAICategorizor = () => {
       });
 
       for await (const chunk of generator) {
-        fullText += chunk;
+        // ストリーミングレスポンスをパース
+        const lines = chunk.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.text) {
+              fullText += data.text;
+            }
+          } catch (e) {
+            // JSON解析エラーは無視
+          }
+        }
       }
 
-      const cleanResponse = fullText.trim().toLowerCase();
+      const cleanResponse = fullText.trim();
       console.log('AI response:', cleanResponse);
 
-      const validCategories: Ingredient['category'][] = [
-        'vegetable',
-        'meat',
-        'seafood',
-        'dairy',
-        'grain',
-        'seasoning',
-        'other',
-      ];
-
-      if (validCategories.includes(cleanResponse as Ingredient['category'])) {
-        console.log('カテゴリー判定成功:', cleanResponse);
-        return cleanResponse as Ingredient['category'];
+      const validatedCategory = validateCategoryResponse(cleanResponse);
+      if (validatedCategory) {
+        console.log('カテゴリー判定成功:', validatedCategory);
+        return validatedCategory;
       }
 
       console.log('カテゴリー判定失敗: デフォルトのotherを返す');
@@ -78,7 +84,7 @@ export const useAICategorizor = () => {
 
   const categorizeMultipleIngredients = async (
     ingredientNames: string[]
-  ): Promise<Record<string, Ingredient['category']>> => {
+  ): Promise<Record<string, IngredientCategory>> => {
     setIsProcessing(true);
 
     const prompt = `以下の食材それぞれのカテゴリーを判定してください。
@@ -107,7 +113,7 @@ JSONフォーマットで返してください。例:
       };
 
       let fullText = '';
-      
+
       // AsyncGeneratorから結果を取得
       const generator = predictStream({
         id: Date.now().toString(),
@@ -121,39 +127,39 @@ JSONフォーマットで返してください。例:
       });
 
       for await (const chunk of generator) {
-        fullText += chunk;
+        // ストリーミングレスポンスをパース
+        const lines = chunk.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.text) {
+              fullText += data.text;
+            }
+          } catch (e) {
+            // JSON解析エラーは無視
+          }
+        }
       }
 
-      const categories: Record<string, Ingredient['category']> = {};
+      const categories: Record<string, IngredientCategory> = {};
 
       try {
         // JSONの部分を抽出
         const jsonMatch = fullText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          console.log('Parsed JSON:', parsed);
-
-          const validCategories: Ingredient['category'][] = [
-            'vegetable',
-            'meat',
-            'seafood',
-            'dairy',
-            'grain',
-            'seasoning',
-            'other',
-          ];
-
-          for (const [name, cat] of Object.entries(parsed)) {
-            const category = String(cat).toLowerCase();
-            if (validCategories.includes(category as Ingredient['category'])) {
-              categories[name] = category as Ingredient['category'];
-            } else {
-              categories[name] = 'other';
-            }
+          const validatedCategories = validateBulkCategoryResponse(
+            jsonMatch[0]
+          );
+          if (validatedCategories) {
+            console.log(
+              'Parsed and validated categories:',
+              validatedCategories
+            );
+            Object.assign(categories, validatedCategories);
           }
         }
       } catch (e) {
-        console.error('JSON解析エラー:', e);
+        console.error('カテゴリー解析エラー:', e);
       }
 
       // 結果が返ってこなかった食材はotherにする
@@ -168,7 +174,7 @@ JSONフォーマットで返してください。例:
     } catch (error) {
       console.error('カテゴリー判定エラー:', error);
       // エラー時は全てotherで返す
-      const result: Record<string, Ingredient['category']> = {};
+      const result: Record<string, IngredientCategory> = {};
       for (const name of ingredientNames) {
         result[name] = 'other';
       }

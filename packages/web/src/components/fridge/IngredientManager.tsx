@@ -1,28 +1,17 @@
 import React, { useState } from 'react';
 import { PiPlus, PiTrash, PiSparkle } from 'react-icons/pi';
 import { useFridgeStore } from '../../stores/fridgeStore';
-import { Ingredient } from '../../types/fridge';
+import {
+  Ingredient,
+  IngredientCategory,
+  NewIngredientSchema,
+  CATEGORY_LABELS,
+  CATEGORY_COLORS,
+} from '../../schemas/fridge';
 import { useAICategorizor } from '../../hooks/useAICategorizor';
+import { z } from 'zod';
 
-const categoryLabels: Record<Ingredient['category'], string> = {
-  vegetable: '野菜',
-  meat: '肉類',
-  seafood: '魚介類',
-  dairy: '乳製品',
-  grain: '穀物',
-  seasoning: '調味料',
-  other: 'その他',
-};
-
-const categoryColors: Record<Ingredient['category'], string> = {
-  vegetable: 'bg-green-100 text-green-800',
-  meat: 'bg-red-100 text-red-800',
-  seafood: 'bg-blue-100 text-blue-800',
-  dairy: 'bg-yellow-100 text-yellow-800',
-  grain: 'bg-amber-100 text-amber-800',
-  seasoning: 'bg-purple-100 text-purple-800',
-  other: 'bg-gray-100 text-gray-800',
-};
+// カテゴリー関連の定数はschemas/fridge.tsから使用
 
 export const IngredientManager: React.FC = () => {
   const { ingredients, addIngredient, removeIngredient, clearAllIngredients } =
@@ -32,7 +21,7 @@ export const IngredientManager: React.FC = () => {
   const [newIngredient, setNewIngredient] = useState({
     name: '',
     quantity: '',
-    category: 'vegetable' as Ingredient['category'],
+    category: 'vegetable' as IngredientCategory,
   });
   const [useAI, setUseAI] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -41,27 +30,42 @@ export const IngredientManager: React.FC = () => {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const handleAdd = async () => {
-    if (newIngredient.name.trim()) {
-      setIsAdding(true);
+    const trimmedName = newIngredient.name.trim();
+    if (!trimmedName) return;
 
+    setIsAdding(true);
+
+    try {
       let category = newIngredient.category;
 
       // AIによるカテゴリー判定を使用する場合
       if (useAI) {
         try {
-          category = await categorizeIngredient(newIngredient.name.trim());
+          category = await categorizeIngredient(trimmedName);
         } catch (error) {
           console.error('AI categorization failed:', error);
         }
       }
 
-      addIngredient({
-        name: newIngredient.name.trim(),
+      // バリデーション
+      const newIngredientData = {
+        name: trimmedName,
         quantity: newIngredient.quantity.trim() || undefined,
         category: category,
-      });
+      };
+
+      const validatedData = NewIngredientSchema.parse(newIngredientData);
+      addIngredient(validatedData);
 
       setNewIngredient({ name: '', quantity: '', category: 'vegetable' });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('Validation error:', error.errors);
+        alert(`入力エラー: ${error.errors.map((e) => e.message).join(', ')}`);
+      } else {
+        console.error('Error adding ingredient:', error);
+      }
+    } finally {
       setIsAdding(false);
     }
   };
@@ -85,27 +89,37 @@ export const IngredientManager: React.FC = () => {
     try {
       const categories = await categorizeMultipleIngredients(items);
 
-      // 食材を追加
+      // 食材を追加（バリデーション付き）
       for (const itemName of items) {
         const category = categories[itemName] || 'other';
-        addIngredient({
-          name: itemName,
-          quantity: undefined,
-          category: category,
-        });
+        try {
+          const validatedData = NewIngredientSchema.parse({
+            name: itemName,
+            quantity: undefined,
+            category: category,
+          });
+          addIngredient(validatedData);
+        } catch (error) {
+          console.error(`Failed to add ${itemName}:`, error);
+        }
       }
 
       setBulkInput('');
       setIsBulkMode(false);
     } catch (error) {
       console.error('Bulk categorization failed:', error);
-      // エラー時は全てotherとして追加
+      // エラー時は全てotherとして追加（バリデーション付き）
       for (const itemName of items) {
-        addIngredient({
-          name: itemName,
-          quantity: undefined,
-          category: 'other',
-        });
+        try {
+          const validatedData = NewIngredientSchema.parse({
+            name: itemName,
+            quantity: undefined,
+            category: 'other',
+          });
+          addIngredient(validatedData);
+        } catch (error) {
+          console.error(`Failed to add ${itemName}:`, error);
+        }
       }
     } finally {
       setIsBulkProcessing(false);
@@ -113,14 +127,14 @@ export const IngredientManager: React.FC = () => {
   };
 
   const groupedIngredients = ingredients.reduce(
-    (acc, ingredient) => {
+    (acc: Record<IngredientCategory, Ingredient[]>, ingredient: Ingredient) => {
       if (!acc[ingredient.category]) {
         acc[ingredient.category] = [];
       }
       acc[ingredient.category].push(ingredient);
       return acc;
     },
-    {} as Record<Ingredient['category'], Ingredient[]>
+    {} as Record<IngredientCategory, Ingredient[]>
   );
 
   return (
@@ -217,12 +231,12 @@ export const IngredientManager: React.FC = () => {
                   onChange={(e) =>
                     setNewIngredient({
                       ...newIngredient,
-                      category: e.target.value as Ingredient['category'],
+                      category: e.target.value as IngredientCategory,
                     })
                   }
                   className="rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 md:w-32"
                   disabled={isAdding}>
-                  {Object.entries(categoryLabels).map(([key, label]) => (
+                  {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
                     <option key={key} value={key}>
                       {label}
                     </option>
@@ -258,11 +272,11 @@ export const IngredientManager: React.FC = () => {
           {Object.entries(groupedIngredients).map(([category, items]) => (
             <div key={category} className="rounded-lg border p-4">
               <h3
-                className={`mb-3 inline-block rounded-full px-3 py-1 text-sm font-semibold ${categoryColors[category as Ingredient['category']]}`}>
-                {categoryLabels[category as Ingredient['category']]}
+                className={`mb-3 inline-block rounded-full px-3 py-1 text-sm font-semibold ${CATEGORY_COLORS[category as IngredientCategory]}`}>
+                {CATEGORY_LABELS[category as IngredientCategory]}
               </h3>
               <div className="flex flex-wrap gap-2">
-                {items.map((ingredient) => (
+                {(items as Ingredient[]).map((ingredient: Ingredient) => (
                   <div
                     key={ingredient.id}
                     className="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2">

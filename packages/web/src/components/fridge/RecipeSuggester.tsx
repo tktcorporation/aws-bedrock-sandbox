@@ -2,12 +2,16 @@ import React, { useState } from 'react';
 import { PiSparkle } from 'react-icons/pi';
 import { useFridgeStore } from '../../stores/fridgeStore';
 import useChat from '../../hooks/useChat';
+import { RecipePreferencesSchema, CUISINE_TYPES, Ingredient } from '../../schemas/fridge';
+import { z } from 'zod';
 
 export const RecipeSuggester: React.FC = () => {
   const { ingredients } = useFridgeStore();
   const [suggestions, setSuggestions] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [preferences, setPreferences] = useState({
+  const [preferences, setPreferences] = useState<
+    z.infer<typeof RecipePreferencesSchema>
+  >({
     cuisine: 'japanese',
     servings: '2',
     time: '30',
@@ -17,14 +21,7 @@ export const RecipeSuggester: React.FC = () => {
   const chatId = 'fridge-recipe-' + Date.now();
   const { postChat } = useChat(chatId);
 
-  const cuisineTypes = {
-    japanese: '和食',
-    chinese: '中華',
-    western: '洋食',
-    italian: 'イタリアン',
-    korean: '韓国料理',
-    any: 'なんでも',
-  };
+  // 料理ジャンルの定数はschemas/fridge.tsから使用
 
   const handleSuggest = async () => {
     if (ingredients.length === 0) {
@@ -32,18 +29,29 @@ export const RecipeSuggester: React.FC = () => {
       return;
     }
 
+    // プリファレンスのバリデーション
+    try {
+      RecipePreferencesSchema.parse(preferences);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('Preferences validation error:', error.errors);
+        alert(`設定エラー: ${error.errors.map((e) => e.message).join(', ')}`);
+        return;
+      }
+    }
+
     setIsLoading(true);
     setSuggestions('');
 
     const ingredientList = ingredients
-      .map((i) => `${i.name}${i.quantity ? ` (${i.quantity})` : ''}`)
+      .map((i: Ingredient) => `${i.name}${i.quantity ? ` (${i.quantity})` : ''}`)
       .join(', ');
 
     const prompt = `現在冷蔵庫にある食材:
 ${ingredientList}
 
 以下の条件で今日の晩御飯のレシピを3つ提案してください:
-- 料理のジャンル: ${cuisineTypes[preferences.cuisine as keyof typeof cuisineTypes]}
+- 料理のジャンル: ${CUISINE_TYPES[preferences.cuisine as keyof typeof CUISINE_TYPES]}
 - 人数: ${preferences.servings}人分
 - 調理時間: 約${preferences.time}分以内
 - 難易度: ${preferences.difficulty === 'easy' ? '簡単' : preferences.difficulty === 'medium' ? '普通' : '難しい'}
@@ -84,10 +92,10 @@ ${ingredientList}
               <select
                 value={preferences.cuisine}
                 onChange={(e) =>
-                  setPreferences({ ...preferences, cuisine: e.target.value })
+                  setPreferences({ ...preferences, cuisine: e.target.value as z.infer<typeof RecipePreferencesSchema>['cuisine'] })
                 }
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                {Object.entries(cuisineTypes).map(([key, label]) => (
+                {Object.entries(CUISINE_TYPES).map(([key, label]) => (
                   <option key={key} value={key}>
                     {label}
                   </option>
@@ -137,7 +145,7 @@ ${ingredientList}
               <select
                 value={preferences.difficulty}
                 onChange={(e) =>
-                  setPreferences({ ...preferences, difficulty: e.target.value })
+                  setPreferences({ ...preferences, difficulty: e.target.value as z.infer<typeof RecipePreferencesSchema>['difficulty'] })
                 }
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="easy">簡単</option>
