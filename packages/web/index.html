@@ -16,13 +16,13 @@
     <title>GenAI Use Cases</title>
   </head>
   <body class="font-body">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
     <!-- Vite＋AmplifyUI requires following setting -->
     <script>
-      if (typeof global === 'undefined') {
+      if (global === undefined) {
         var global = window;
       }
     </script>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
