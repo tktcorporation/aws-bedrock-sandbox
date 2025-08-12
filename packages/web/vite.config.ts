@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => ({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       devOptions: {
-        enabled: true,
+        enabled: false, // 開発環境でService Workerを無効化
       },
       injectRegister: 'auto',
       workbox: {

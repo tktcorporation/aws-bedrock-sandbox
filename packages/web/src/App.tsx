@@ -24,6 +24,7 @@ import {
   PiNotebook,
   PiGraph,
   PiForkKnife,
+  PiGameController,
 } from 'react-icons/pi';
 import { Outlet } from 'react-router-dom';
 import Drawer, { ItemProps } from './components/Drawer';
@@ -245,6 +246,12 @@ const App: React.FC = () => {
       label: '冷蔵庫管理 & 献立提案',
       to: '/fridge',
       icon: <PiForkKnife />,
+      display: 'usecase' as const,
+    },
+    {
+      label: 'AI対戦3目並べ',
+      to: '/tictactoe',
+      icon: <PiGameController />,
       display: 'usecase' as const,
     },
     optimizePromptEnabled

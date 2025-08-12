@@ -5,12 +5,6 @@
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/devcontainers-extra/features/mise:1": {}
   },
-  "forwardPorts": [5173, 8787],
-  "portsAttributes": {
-    "5173": {
-      "label": "vite"
-    }
-  },
   "runArgs": ["--env-file", ".devcontainer/devcontainer.env"],
   "customizations": {
     "vscode": {

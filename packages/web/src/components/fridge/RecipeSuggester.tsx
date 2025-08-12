@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { PiSparkle } from 'react-icons/pi';
 import { useFridgeStore } from '../../stores/fridgeStore';
 import useChat from '../../hooks/useChat';
-import { RecipePreferencesSchema, CUISINE_TYPES, Ingredient } from '../../schemas/fridge';
+import {
+  RecipePreferencesSchema,
+  CUISINE_TYPES,
+  Ingredient,
+} from '../../schemas/fridge';
 import { z } from 'zod';
 
 export const RecipeSuggester: React.FC = () => {
@@ -44,7 +48,9 @@ export const RecipeSuggester: React.FC = () => {
     setSuggestions('');
 
     const ingredientList = ingredients
-      .map((i: Ingredient) => `${i.name}${i.quantity ? ` (${i.quantity})` : ''}`)
+      .map(
+        (i: Ingredient) => `${i.name}${i.quantity ? ` (${i.quantity})` : ''}`
+      )
       .join(', ');
 
     const prompt = `現在冷蔵庫にある食材:
@@ -92,7 +98,12 @@ ${ingredientList}
               <select
                 value={preferences.cuisine}
                 onChange={(e) =>
-                  setPreferences({ ...preferences, cuisine: e.target.value as z.infer<typeof RecipePreferencesSchema>['cuisine'] })
+                  setPreferences({
+                    ...preferences,
+                    cuisine: e.target.value as z.infer<
+                      typeof RecipePreferencesSchema
+                    >['cuisine'],
+                  })
                 }
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 {Object.entries(CUISINE_TYPES).map(([key, label]) => (
@@ -145,7 +156,12 @@ ${ingredientList}
               <select
                 value={preferences.difficulty}
                 onChange={(e) =>
-                  setPreferences({ ...preferences, difficulty: e.target.value as z.infer<typeof RecipePreferencesSchema>['difficulty'] })
+                  setPreferences({
+                    ...preferences,
+                    difficulty: e.target.value as z.infer<
+                      typeof RecipePreferencesSchema
+                    >['difficulty'],
+                  })
                 }
                 className="w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
                 <option value="easy">簡単</option>
