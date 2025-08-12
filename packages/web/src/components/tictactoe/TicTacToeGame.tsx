@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import useChat from '../../hooks/useChat';
-import { MODELS } from '../../hooks/useModel';
+import useChatApi from '../../hooks/useChatApi';
+import type { Model } from 'generative-ai-use-cases';
+
 import Button from '../Button';
 import LoadingOverlay from '../LoadingOverlay';
 
@@ -21,18 +22,7 @@ export const TicTacToeGame: React.FC = () => {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [gameHistory, setGameHistory] = useState<GameHistory[]>([]);
   const [winLine, setWinLine] = useState<number[] | null>(null);
-  const chatId = 'tictactoe';
-  const { postChat, getModelId, setModelId, init } = useChat(chatId);
-  const { modelIds: availableModels } = MODELS;
-
-  // コンポーネントマウント時に初期化とモデルID設定
-  useEffect(() => {
-    init();
-    // デフォルトのモデルIDを設定（利用可能な最初のモデル）
-    if (availableModels.length > 0 && !getModelId()) {
-      setModelId(availableModels[0]);
-    }
-  }, [init, availableModels, getModelId, setModelId]);
+  const { predictStream } = useChatApi();
 
   const checkWinner = useCallback(
     (squares: Board): { winner: Player; line: number[] | null } => {
@@ -100,6 +90,46 @@ export const TicTacToeGame: React.FC = () => {
     window.dispatchEvent(new Event('tictactoe-stats-updated'));
   };
 
+  const callAI = async (prompt: string): Promise<string> => {
+    try {
+      const model: Model = {
+        modelId: 'amazon.nova-micro-v1:0',
+        type: 'bedrock',
+      };
+
+      let fullText = '';
+      const generator = predictStream({
+        id: Date.now().toString(),
+        model: model,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      });
+
+      for await (const chunk of generator) {
+        const lines = chunk.split('\n').filter((line) => line.trim());
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line as string);
+            if (data.text) {
+              fullText += data.text;
+            }
+          } catch (e) {
+            // JSON解析エラーは無視
+          }
+        }
+      }
+
+      return fullText.trim();
+    } catch (error) {
+      console.error('AI応答の生成に失敗:', error);
+      throw error;
+    }
+  };
+
   const generateAiResponse = async (
     squares: Board,
     gameStatus: GameState,
@@ -144,11 +174,7 @@ export const TicTacToeGame: React.FC = () => {
     }
 
     try {
-      let response = '';
-      await postChat(prompt, false, undefined, (message: string) => {
-        response = message;
-        return message;
-      });
+      const response = await callAI(prompt);
       return response;
     } catch (error) {
       console.error('AI応答の生成に失敗:', error);
@@ -188,12 +214,7 @@ ${boardDisplay}
 回答は番号のみ（例: 4）`;
 
     try {
-      let response = '';
-      await postChat(prompt, false, undefined, (message: string) => {
-        response = message;
-        return message;
-      });
-
+      const response = await callAI(prompt);
       const move = parseInt(response.trim());
       if (emptyIndices.includes(move)) {
         return move;

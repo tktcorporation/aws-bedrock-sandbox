@@ -32,7 +32,7 @@ export const useAICategorizor = () => {
       console.log('カテゴリー判定中:', ingredientName);
 
       const model: Model = {
-        modelId: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+        modelId: 'amazon.nova-micro-v1:0',
         type: 'bedrock',
       };
 
@@ -108,7 +108,7 @@ JSONフォーマットで返してください。例:
       console.log('一括カテゴリー判定中:', ingredientNames);
 
       const model: Model = {
-        modelId: 'us.anthropic.claude-3-5-haiku-20241022-v1:0',
+        modelId: 'amazon.nova-micro-v1:0',
         type: 'bedrock',
       };
 
