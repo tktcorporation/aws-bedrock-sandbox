@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import useChat from '../../hooks/useChat';
+import { MODELS } from '../../hooks/useModel';
 import Button from '../Button';
 import LoadingOverlay from '../LoadingOverlay';
 
@@ -20,8 +21,18 @@ export const TicTacToeGame: React.FC = () => {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [gameHistory, setGameHistory] = useState<GameHistory[]>([]);
   const [winLine, setWinLine] = useState<number[] | null>(null);
-  const chatId = 'tictactoe-' + Date.now();
-  const { postChat } = useChat(chatId);
+  const chatId = 'tictactoe';
+  const { postChat, getModelId, setModelId, init } = useChat(chatId);
+  const { modelIds: availableModels } = MODELS;
+
+  // コンポーネントマウント時に初期化とモデルID設定
+  useEffect(() => {
+    init();
+    // デフォルトのモデルIDを設定（利用可能な最初のモデル）
+    if (availableModels.length > 0 && !getModelId()) {
+      setModelId(availableModels[0]);
+    }
+  }, [init, availableModels, getModelId, setModelId]);
 
   const checkWinner = useCallback(
     (squares: Board): { winner: Player; line: number[] | null } => {
@@ -104,28 +115,23 @@ export const TicTacToeGame: React.FC = () => {
 
     const positionMap: { [key: number]: string } = {
       0: '左上',
-      1: '中央上',
+      1: '上',
       2: '右上',
-      3: '左中',
+      3: '左',
       4: '中央',
-      5: '右中',
+      5: '右',
       6: '左下',
-      7: '中央下',
+      7: '下',
       8: '右下',
     };
 
-    let prompt = `あなたは3目並べゲームのAIプレイヤーです。プレイヤーは「○」、あなたは「×」です。
-
-現在の盤面:
-${boardDisplay}
-
-`;
+    let prompt = `あなたは3目並べゲームのAIプレイヤーです。現在の盤面:\n${boardDisplay}\n\n`;
 
     if (gameStatus === 'aiWin') {
-      prompt += `あなたが勝利しました！${moveIndex !== null ? `${positionMap[moveIndex]}に置いて勝ちました。` : ''}プレイヤーに対して勝利の言葉と、再戦を促すコメントを30字以内で返してください。`;
+      prompt += 'あなたの勝利です！勝利の喜びを30字以内で表現してください。';
     } else if (gameStatus === 'playerWin') {
       prompt +=
-        'プレイヤーが勝利しました！敗北を認めて、次は負けないという意気込みを30字以内で返してください。';
+        'プレイヤーの勝利です！悔しさと再戦への意欲を30字以内で表現してください。';
     } else if (gameStatus === 'draw') {
       prompt +=
         '引き分けです！引き分けについてのコメントと再戦を促す言葉を30字以内で返してください。';
@@ -177,11 +183,7 @@ ${boardDisplay}
 
 空いているマス: ${emptyIndices.join(', ')}
 
-最適な手を考えて、置くべきマスの番号（0-8）を1つだけ返してください。
-重要：
-1. まず自分が勝てる手があるか確認
-2. 次に相手の勝ちを防ぐ手があるか確認
-3. それ以外は戦略的に良い位置を選ぶ
+戦略的に最適な手を選んでください。勝利を目指しつつ、プレイヤーの勝利も阻止してください。
 
 回答は番号のみ（例: 4）`;
 
@@ -210,32 +212,28 @@ ${boardDisplay}
     if (
       board[index] ||
       gameState !== 'playing' ||
-      currentPlayer !== 'O' ||
-      isAiThinking
+      isAiThinking ||
+      currentPlayer !== 'O'
     ) {
       return;
     }
 
-    // プレイヤーの手を置く
+    // プレイヤーの手
     const newBoard = [...board];
     newBoard[index] = 'O';
     setBoard(newBoard);
 
-    const { winner: playerWinner, line: playerWinLine } = checkWinner(newBoard);
-    if (playerWinner === 'O') {
-      setGameState('playerWin');
-      setWinLine(playerWinLine);
-      updateStats('playerWin');
-      const message = await generateAiResponse(newBoard, 'playerWin', null);
-      setAiMessage(message);
-      return;
-    }
+    // ゲーム状態をチェック
+    const newGameState = getGameStatus(newBoard);
 
-    if (checkDraw(newBoard)) {
-      setGameState('draw');
-      updateStats('draw');
-      const message = await generateAiResponse(newBoard, 'draw', null);
+    if (newGameState !== 'playing') {
+      const { line } = checkWinner(newBoard);
+      setWinLine(line);
+      setGameState(newGameState);
+      updateStats(newGameState);
+      const message = await generateAiResponse(newBoard, newGameState, null);
       setAiMessage(message);
+      setGameHistory([...gameHistory, { board: newBoard, aiMessage: message }]);
       return;
     }
 
@@ -247,155 +245,167 @@ ${boardDisplay}
       const aiMove = await getAiMove(newBoard);
       const aiBoard = [...newBoard];
       aiBoard[aiMove] = 'X';
-
-      // AIのメッセージを生成
-      const status = getGameStatus(aiBoard);
-      const message = await generateAiResponse(aiBoard, status, aiMove);
-
-      // 状態を更新
       setBoard(aiBoard);
-      setAiMessage(message);
 
-      const { winner: aiWinner, line: aiWinLine } = checkWinner(aiBoard);
-      if (aiWinner === 'X') {
-        setGameState('aiWin');
-        setWinLine(aiWinLine);
-        updateStats('aiWin');
-      } else if (checkDraw(aiBoard)) {
-        setGameState('draw');
-        updateStats('draw');
-      } else {
-        setCurrentPlayer('O');
+      const aiGameState = getGameStatus(aiBoard);
+      const { line } = checkWinner(aiBoard);
+      setWinLine(line);
+
+      if (aiGameState !== 'playing') {
+        setGameState(aiGameState);
+        updateStats(aiGameState);
       }
 
-      // 履歴に追加
-      setGameHistory((prev) => [
-        ...prev,
-        { board: aiBoard, aiMessage: message },
-      ]);
+      const message = await generateAiResponse(
+        aiBoard,
+        aiGameState,
+        aiGameState === 'playing' ? aiMove : null
+      );
+      setAiMessage(message);
+      setGameHistory([...gameHistory, { board: aiBoard, aiMessage: message }]);
+
+      if (aiGameState === 'playing') {
+        setCurrentPlayer('O');
+      }
     } catch (error) {
-      console.error('AIの手の処理に失敗:', error);
+      console.error('AIの手番でエラーが発生しました:', error);
       setAiMessage('エラーが発生しました。もう一度お試しください。');
+      setCurrentPlayer('O');
     } finally {
       setIsAiThinking(false);
     }
   };
 
-  const startNewGame = async () => {
+  const resetGame = async () => {
     setBoard(Array(9).fill(null));
     setCurrentPlayer('O');
     setGameState('playing');
     setWinLine(null);
     setGameHistory([]);
 
-    // 新しいゲームの開始メッセージ
-    const message = await generateAiResponse(
+    const initialMessage = await generateAiResponse(
       Array(9).fill(null),
       'playing',
       null
     );
-    setAiMessage(message);
+    setAiMessage(initialMessage);
   };
 
+  // 初期メッセージを設定
   useEffect(() => {
-    startNewGame();
-  }, []);
+    const initializeGame = async () => {
+      const initialMessage = await generateAiResponse(
+        Array(9).fill(null),
+        'playing',
+        null
+      );
+      setAiMessage(initialMessage);
+    };
+    initializeGame();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const getCellClass = (index: number) => {
-    const baseClass =
-      'aspect-square flex items-center justify-center text-4xl font-bold cursor-pointer transition-all duration-200 border-2 border-gray-300 hover:bg-gray-50';
+  const getCellClassName = (index: number) => {
+    const baseClasses =
+      'w-24 h-24 border-2 border-gray-300 text-4xl font-bold flex items-center justify-center cursor-pointer hover:bg-gray-100 transition-colors';
 
-    if (winLine && winLine.includes(index)) {
-      return `${baseClass} bg-green-100 border-green-500`;
+    const isWinningCell = winLine && winLine.includes(index);
+    const cellValue = board[index];
+
+    let colorClasses = '';
+    if (isWinningCell) {
+      if (cellValue === 'O') {
+        colorClasses = 'bg-blue-200 text-blue-600';
+      } else if (cellValue === 'X') {
+        colorClasses = 'bg-red-200 text-red-600';
+      }
+    } else {
+      if (cellValue === 'O') {
+        colorClasses = 'text-blue-600';
+      } else if (cellValue === 'X') {
+        colorClasses = 'text-red-600';
+      }
     }
 
-    if (board[index] === 'O') {
-      return `${baseClass} text-blue-600`;
-    }
-
-    if (board[index] === 'X') {
-      return `${baseClass} text-red-600`;
-    }
-
-    return baseClass;
+    return `${baseClasses} ${colorClasses}`;
   };
 
   const getStatusMessage = () => {
     switch (gameState) {
       case 'playerWin':
-        return '🎉 あなたの勝利！';
+        return '🎉 あなたの勝利です！';
       case 'aiWin':
-        return '🤖 AIの勝利！';
+        return '🤖 AIの勝利です！';
       case 'draw':
-        return '🤝 引き分け！';
+        return '🤝 引き分けです！';
       default:
         return currentPlayer === 'O' ? 'あなたのターン' : 'AIが考え中...';
     }
   };
 
-  return (
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-2xl">
-        {/* ステータス表示 */}
-        <div className="mb-6 rounded-lg bg-white p-4 shadow">
-          <div className="mb-2 text-center text-xl font-semibold">
-            {getStatusMessage()}
-          </div>
-          {isAiThinking && (
-            <div className="flex items-center justify-center">
-              <LoadingOverlay>考え中...</LoadingOverlay>
-            </div>
-          )}
-        </div>
+  const getStatusColor = () => {
+    switch (gameState) {
+      case 'playerWin':
+        return 'text-blue-600';
+      case 'aiWin':
+        return 'text-red-600';
+      case 'draw':
+        return 'text-yellow-600';
+      default:
+        return 'text-gray-700';
+    }
+  };
 
-        {/* AIメッセージ */}
+  return (
+    <div className="flex flex-col items-center space-y-6 rounded-lg bg-white p-6 shadow-lg">
+      {isAiThinking && (
+        <LoadingOverlay>
+          <span>AI思考中...</span>
+        </LoadingOverlay>
+      )}
+
+      <div className="text-center">
+        <h2 className={`mb-2 text-2xl font-bold ${getStatusColor()}`}>
+          {getStatusMessage()}
+        </h2>
         {aiMessage && (
-          <div className="mb-6 rounded-lg bg-blue-50 p-4 shadow">
-            <div className="flex items-start">
-              <span className="mr-2 text-2xl">🤖</span>
-              <div className="flex-1">
-                <p className="font-semibold text-blue-900">Claude AI</p>
-                <p className="mt-1 text-blue-800">{aiMessage}</p>
-              </div>
-            </div>
+          <div className="mb-4 min-h-[60px] rounded-lg bg-gray-100 p-3">
+            <p className="text-gray-700">{aiMessage}</p>
           </div>
         )}
+      </div>
 
-        {/* ゲームボード */}
-        <div className="mb-6 rounded-lg bg-white p-6 shadow">
-          <div className="grid grid-cols-3 gap-2">
-            {board.map((cell, index) => (
-              <div
-                key={index}
-                className={getCellClass(index)}
-                onClick={() => handleCellClick(index)}>
-                {cell}
+      <div className="relative">
+        <div className="grid grid-cols-3 gap-0 bg-gray-200">
+          {board.map((cell, index) => (
+            <div
+              key={index}
+              className={getCellClassName(index)}
+              onClick={() => handleCellClick(index)}>
+              {cell}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {gameState !== 'playing' && (
+        <Button onClick={resetGame} className="px-6 py-2">
+          もう一度プレイ
+        </Button>
+      )}
+
+      {gameHistory.length > 0 && (
+        <div className="w-full max-w-md">
+          <h3 className="mb-2 text-lg font-semibold">ゲーム履歴</h3>
+          <div className="max-h-40 space-y-2 overflow-y-auto">
+            {gameHistory.map((history, index) => (
+              <div key={index} className="border-b pb-1 text-sm text-gray-600">
+                <span className="font-medium">手 {index + 1}:</span>{' '}
+                {history.aiMessage}
               </div>
             ))}
           </div>
         </div>
-
-        {/* コントロール */}
-        <div className="flex justify-center">
-          <Button onClick={startNewGame}>🔄 新しいゲーム</Button>
-        </div>
-
-        {/* 履歴 */}
-        {gameHistory.length > 0 && (
-          <div className="mt-8">
-            <h3 className="mb-4 text-lg font-semibold">今回のゲーム履歴</h3>
-            <div className="space-y-2">
-              {gameHistory.map((history, index) => (
-                <div key={index} className="rounded bg-gray-50 p-3">
-                  <p className="text-sm text-gray-600">
-                    手番 {index + 1}: {history.aiMessage}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };
