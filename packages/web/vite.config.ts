@@ -5,10 +5,15 @@ import svgr from 'vite-plugin-svgr';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { VitePWA } from 'vite-plugin-pwa';
 import { visualizer } from 'rollup-plugin-visualizer';
+import viteCompression from 'vite-plugin-compression';
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   build: {
+    // メモリ使用量を削減
+    sourcemap: false,
+    chunkSizeWarningLimit: 500,
+    minify: 'esbuild', // esbuildの方が高速で省メモリ
     rollupOptions: {
       plugins: [
         mode === 'analyze' &&
@@ -19,9 +24,39 @@ export default defineConfig(({ mode }) => ({
             brotliSize: true,
           }),
       ],
+      output: {
+        // シンプルなチャンク分割戦略
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'aws-sdk': [
+            '@aws-sdk/client-lambda',
+            '@aws-sdk/client-kendra',
+            '@aws-sdk/client-polly',
+            '@aws-sdk/client-transcribe',
+            '@aws-sdk/client-transcribe-streaming',
+          ],
+          'aws-amplify': ['aws-amplify', '@aws-amplify/ui-react'],
+          editor: ['@tiptap/react', '@uiw/react-md-editor'],
+          charts: ['recharts', 'mermaid'],
+          'ui-libs': [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-popover',
+            '@headlessui/react',
+          ],
+        },
+      },
     },
   },
-  resolve: { alias: { './runtimeConfig': './runtimeConfig.browser' } },
+  optimizeDeps: {
+    // 事前バンドルの最適化
+    include: ['react', 'react-dom', 'react-router-dom'],
+    exclude: ['@aws-sdk', '@aws-amplify', 'mermaid'], // 大きなライブラリは除外
+  },
+  resolve: {
+    alias: {
+      './runtimeConfig': './runtimeConfig.browser',
+    },
+  },
   plugins: [
     react(),
     svgr(),
@@ -31,11 +66,19 @@ export default defineConfig(({ mode }) => ({
         process: true,
       },
     }),
+    // gzip圧縮のみ（brotliは省略してビルド時間短縮）
+    viteCompression({
+      verbose: false,
+      disable: false,
+      threshold: 10240,
+      algorithm: 'gzip',
+      ext: '.gz',
+    }),
     VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
       devOptions: {
-        enabled: false, // 開発環境でService Workerを無効化
+        enabled: false,
       },
       injectRegister: 'auto',
       workbox: {
