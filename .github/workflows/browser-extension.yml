@@ -6,10 +6,10 @@ name: Browser Extension CI
 on:
   push:
     branches: ['main']
-    paths: ['browser-extension/**']
+    paths: ['browser-extension/**', '.github/workflows/browser-extension.yml']
   pull_request:
     branches: ['main']
-    paths: ['browser-extension/**']
+    paths: ['browser-extension/**', '.github/workflows/browser-extension.yml']
 
 jobs:
   check-lint-build:
