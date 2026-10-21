@@ -1,7 +1,7 @@
 {
   "name": "generative-ai-use-cases",
   "private": true,
-  "version": "4.3.4",
+  "version": "0.1.0",
   "engines": {
     "node": "24"
   },
